@@ -8,21 +8,25 @@ import (
 	"strings"
 )
 
-func handleCommand(command string) {
+func executeExitCmd(command string) {
+	// Get the optional exit code
+	tokens := strings.Split(command, " ")
+	if len(tokens) <= 1 {
+		os.Exit(0)
+	}
+	// Parse the exit code
+	exitCode, err := strconv.Atoi(strings.Split(command, " ")[1])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error reading exit code: ", err)
+		exitCode = 1
+	}
+	os.Exit(exitCode)
+}
+
+func evaluateCommand(command string) {
 	// Handle the "exit" builtin
 	if strings.HasPrefix(command, "exit") {
-		// Get the optional exit code
-		tokens := strings.Split(command, " ")
-		if len(tokens) <= 1 {
-			os.Exit(0)
-		}
-		// Parse the exit code
-		exitCode, err := strconv.Atoi(strings.Split(command, " ")[1])
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error reading exit code: ", err)
-			exitCode = 1
-		}
-		os.Exit(exitCode)
+		executeExitCmd(command)
 	}
 
 	fmt.Println(command + ": command not found")
@@ -39,6 +43,6 @@ func main() {
 			os.Exit(1)
 		}
 
-		handleCommand(command[:len(command)-1])
+		evaluateCommand(command[:len(command)-1])
 	}
 }
