@@ -32,12 +32,25 @@ func executeEchoCmd(command string) {
 	fmt.Println(strings.Join(tokens[1:], " "))
 }
 
+func executeTypeCmd(command string) {
+	tokens := strings.Split(command, " ")[1:]
+	argCmd := strings.Join(tokens, " ")
+	switch argCmd {
+	case "exit", "echo", "type":
+		fmt.Printf("%s is a shell builtin\n", argCmd)
+	default:
+		fmt.Printf("%s: not found\n", argCmd)
+	}
+}
+
 func evaluateCommand(command string) {
 	// Handle the "exit" builtin
 	if strings.HasPrefix(command, "exit") {
 		executeExitCmd(command)
 	} else if strings.HasPrefix(command, "echo") {
 		executeEchoCmd(command)
+	} else if strings.HasPrefix(command, "type") {
+		executeTypeCmd(command)
 	} else {
 		fmt.Println(command + ": command not found")
 	}
