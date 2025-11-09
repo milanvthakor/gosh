@@ -23,13 +23,24 @@ func executeExitCmd(command string) {
 	os.Exit(exitCode)
 }
 
+func executeEchoCmd(command string) {
+	tokens := strings.Split(command, " ")
+	if len(tokens) < 1 {
+		os.Exit(0)
+	}
+
+	fmt.Println(strings.Join(tokens[1:], " "))
+}
+
 func evaluateCommand(command string) {
 	// Handle the "exit" builtin
 	if strings.HasPrefix(command, "exit") {
 		executeExitCmd(command)
+	} else if strings.HasPrefix(command, "echo") {
+		executeEchoCmd(command)
+	} else {
+		fmt.Println(command + ": command not found")
 	}
-
-	fmt.Println(command + ": command not found")
 }
 
 func main() {
