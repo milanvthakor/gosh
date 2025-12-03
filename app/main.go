@@ -39,6 +39,45 @@ func executeTypeCmd(command string) {
 	case "exit", "echo", "type":
 		fmt.Printf("%s is a shell builtin\n", argCmd)
 	default:
+		// Look for executable files with "command" name
+		// Get the path
+		path, ok := os.LookupEnv("PATH")
+		if !ok {
+			fmt.Fprintf(os.Stderr, "'PATH' env is not set\n")
+			os.Exit(1)
+		}
+
+		// Get directory paths
+		dirs := strings.Split(path, string(os.PathListSeparator))
+		for _, dir := range dirs {
+			// Read the directory
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to read directory: %v\n", err)
+				return
+			}
+
+			// Loop over directory items
+			for _, entry := range entries {
+				if entry.IsDir() { // Skip if directory, we need file
+					continue
+				}
+
+				info, err := entry.Info()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Failed to get file info: %v\n", err)
+					continue
+				}
+
+				// Check if the file owner has executable permission on it
+				// and is the file that we are looking for
+				if entry.Name() == argCmd && (info.Mode().Perm()&0100) != 0 {
+					fmt.Printf("%v is %v/%v\n", argCmd, dir, argCmd)
+					return
+				}
+			}
+		}
+
 		fmt.Printf("%s: not found\n", argCmd)
 	}
 }
