@@ -50,6 +50,16 @@ func executeTypeCmd(command string) {
 		// Get directory paths
 		dirs := strings.Split(path, string(os.PathListSeparator))
 		for _, dir := range dirs {
+			// Check if the path is directory or not
+			info, err := os.Stat(dir)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed get path info: %v\n", err)
+				continue
+			}
+			if !info.IsDir() {
+				continue
+			}
+
 			// Read the directory
 			entries, err := os.ReadDir(dir)
 			if err != nil {
