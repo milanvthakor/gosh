@@ -92,6 +92,16 @@ func executeTypeCmd(command string) {
 	}
 }
 
+func executePwdCmd() {
+	curDir, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return
+	}
+
+	fmt.Println(curDir)
+}
+
 func runProgram(command string) bool {
 	tokens := strings.Split(command, " ")
 	argCmd := tokens[0]
@@ -123,6 +133,8 @@ func evaluateCommand(command string) {
 		executeEchoCmd(command)
 	} else if strings.HasPrefix(command, "type") {
 		executeTypeCmd(command)
+	} else if command == "pwd" {
+		executePwdCmd()
 	} else if !runProgram(command) {
 		fmt.Println(command + ": command not found")
 	}
