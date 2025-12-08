@@ -96,13 +96,12 @@ func runProgram(command string) bool {
 	tokens := strings.Split(command, " ")
 	argCmd := tokens[0]
 
-	exePath, err := getExecutablePath(argCmd)
-	if err != nil {
+	if _, err := getExecutablePath(argCmd); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return false
 	}
 
-	cmd := exec.Command(exePath, tokens[1:]...)
+	cmd := exec.Command(tokens[0], tokens[1:]...)
 	output, err := cmd.Output()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
