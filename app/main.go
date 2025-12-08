@@ -79,7 +79,7 @@ func executeTypeCmd(command string) {
 	tokens := strings.Split(command, " ")[1:]
 	argCmd := strings.Join(tokens, " ")
 	switch argCmd {
-	case "exit", "echo", "type":
+	case "exit", "echo", "type", "pwd":
 		fmt.Printf("%s is a shell builtin\n", argCmd)
 	default:
 		exePath, err := getExecutablePath(argCmd)
