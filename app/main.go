@@ -96,8 +96,11 @@ func runProgram(command string) bool {
 	tokens := strings.Split(command, " ")
 	argCmd := tokens[0]
 
-	if _, err := getExecutablePath(argCmd); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+	_, err := getExecutablePath(argCmd)
+	if err != nil {
+		if !strings.Contains(err.Error(), "not found") {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+		}
 		return false
 	}
 
