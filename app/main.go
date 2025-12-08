@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 )
@@ -32,6 +33,48 @@ func executeEchoCmd(command string) {
 	fmt.Println(strings.Join(tokens[1:], " "))
 }
 
+func getExecutablePath(file string) (string, error) {
+	// Look for executable files with "command" name
+	// Get the path
+	path, ok := os.LookupEnv("PATH")
+	if !ok {
+		fmt.Fprintf(os.Stderr, "'PATH' env is not set\n")
+		os.Exit(1)
+		return "", nil
+	}
+
+	// Get directory paths
+	dirs := strings.SplitSeq(path, string(os.PathListSeparator))
+	for dir := range dirs {
+		// Read the directory
+		entries, err := os.ReadDir(dir)
+		if err != nil && !os.IsNotExist(err) {
+			return "", fmt.Errorf("failed to read directory: %v", err)
+		}
+
+		// Loop over directory items
+		for _, entry := range entries {
+			if entry.IsDir() { // Skip if directory, we need file
+				continue
+			}
+
+			info, err := entry.Info()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to get file info: %v\n", err)
+				continue
+			}
+
+			// Check if the file owner has executable permission on it
+			// and is the file that we are looking for
+			if entry.Name() == file && (info.Mode().Perm()&0100) != 0 {
+				return fmt.Sprintf("%v/%v", dir, file), nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("%s: not found", file)
+}
+
 func executeTypeCmd(command string) {
 	tokens := strings.Split(command, " ")[1:]
 	argCmd := strings.Join(tokens, " ")
@@ -39,47 +82,35 @@ func executeTypeCmd(command string) {
 	case "exit", "echo", "type":
 		fmt.Printf("%s is a shell builtin\n", argCmd)
 	default:
-		// Look for executable files with "command" name
-		// Get the path
-		path, ok := os.LookupEnv("PATH")
-		if !ok {
-			fmt.Fprintf(os.Stderr, "'PATH' env is not set\n")
-			os.Exit(1)
+		exePath, err := getExecutablePath(argCmd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			return
 		}
 
-		// Get directory paths
-		dirs := strings.Split(path, string(os.PathListSeparator))
-		for _, dir := range dirs {
-			// Read the directory
-			entries, err := os.ReadDir(dir)
-			if err != nil && !os.IsNotExist(err) {
-				fmt.Fprintf(os.Stderr, "Failed to read directory: %v\n", err)
-				return
-			}
-
-			// Loop over directory items
-			for _, entry := range entries {
-				if entry.IsDir() { // Skip if directory, we need file
-					continue
-				}
-
-				info, err := entry.Info()
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Failed to get file info: %v\n", err)
-					continue
-				}
-
-				// Check if the file owner has executable permission on it
-				// and is the file that we are looking for
-				if entry.Name() == argCmd && (info.Mode().Perm()&0100) != 0 {
-					fmt.Printf("%v is %v/%v\n", argCmd, dir, argCmd)
-					return
-				}
-			}
-		}
-
-		fmt.Printf("%s: not found\n", argCmd)
+		fmt.Printf("%v is %v\n", argCmd, exePath)
 	}
+}
+
+func runProgram(command string) bool {
+	tokens := strings.Split(command, " ")
+	argCmd := tokens[0]
+
+	exePath, err := getExecutablePath(argCmd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return false
+	}
+
+	cmd := exec.Command(exePath, tokens[1:]...)
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return false
+	}
+
+	fmt.Print(string(output))
+	return true
 }
 
 func evaluateCommand(command string) {
@@ -90,7 +121,7 @@ func evaluateCommand(command string) {
 		executeEchoCmd(command)
 	} else if strings.HasPrefix(command, "type") {
 		executeTypeCmd(command)
-	} else {
+	} else if !runProgram(command) {
 		fmt.Println(command + ": command not found")
 	}
 }
