@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -104,18 +105,18 @@ func executePwdCmd() {
 
 func executeCdCmd(command string) {
 	newDir := strings.Split(command, " ")[1]
-	if err := os.Chdir(newDir); err != nil {
+	absPath, err := filepath.Abs(newDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return
+	}
+
+	if err := os.Chdir(absPath); err != nil {
 		if os.IsNotExist(err) {
 			fmt.Fprintf(os.Stderr, "cd: %v: No such file or directory\n", newDir)
 		} else {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 		}
-		return
-	}
-
-	if err := os.Chdir(newDir); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		return
 	}
 }
 
