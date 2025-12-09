@@ -105,7 +105,11 @@ func executePwdCmd() {
 func executeCdCmd(command string) {
 	newDir := strings.Split(command, " ")[1]
 	if err := os.Chdir(newDir); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		if os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "cd: %v: No such file or directory\n", newDir)
+		} else {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+		}
 		return
 	}
 
