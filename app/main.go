@@ -79,7 +79,7 @@ func executeTypeCmd(command string) {
 	tokens := strings.Split(command, " ")[1:]
 	argCmd := strings.Join(tokens, " ")
 	switch argCmd {
-	case "exit", "echo", "type", "pwd":
+	case "exit", "echo", "type", "pwd", "cd":
 		fmt.Printf("%s is a shell builtin\n", argCmd)
 	default:
 		exePath, err := getExecutablePath(argCmd)
@@ -100,6 +100,19 @@ func executePwdCmd() {
 	}
 
 	fmt.Println(curDir)
+}
+
+func executeCdCmd(command string) {
+	newDir := strings.Split(command, " ")[1]
+	if err := os.Chdir(newDir); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return
+	}
+
+	if err := os.Chdir(newDir); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return
+	}
 }
 
 func runProgram(command string) bool {
@@ -135,6 +148,8 @@ func evaluateCommand(command string) {
 		executeTypeCmd(command)
 	} else if command == "pwd" {
 		executePwdCmd()
+	} else if strings.HasPrefix(command, "cd") {
+		executeCdCmd(command)
 	} else if !runProgram(command) {
 		fmt.Println(command + ": command not found")
 	}
