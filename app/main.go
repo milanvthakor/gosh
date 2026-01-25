@@ -12,7 +12,9 @@ import (
 
 type Instruction struct {
 	Command string
-	Arg     string
+	// RawArg is actual argument passed to the prompt without any parsing for quotes
+	RawArg string
+	Args   string
 }
 
 // parseInstruction parses the instruction given to the prompt.
@@ -27,10 +29,10 @@ func parseInstruction(rawInstruction string) *Instruction {
 		Command: tokens[0],
 	}
 	if tokensLen > 1 {
-		inst.Arg = strings.Join(tokens[1:], " ")
+		inst.RawArg = strings.Join(tokens[1:], " ")
 	}
 
-	inst.Arg = handleSingleQuote(inst.Arg)
+	inst.Args = handleSingleQuote(inst.RawArg)
 	return inst
 }
 
@@ -55,13 +57,13 @@ func handleSingleQuote(arg string) string {
 }
 
 func executeExitCmd(inst *Instruction) {
-	if len(inst.Arg) <= 0 {
+	if len(inst.Args) <= 0 {
 		os.Exit(0)
 		return
 	}
 
 	// Parse the exit code
-	exitCode, err := strconv.Atoi(inst.Arg)
+	exitCode, err := strconv.Atoi(inst.Args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error reading exit code: ", err)
 		exitCode = 1
@@ -70,7 +72,7 @@ func executeExitCmd(inst *Instruction) {
 }
 
 func executeEchoCmd(inst *Instruction) {
-	fmt.Println(inst.Arg)
+	fmt.Println(inst.Args)
 }
 
 func getExecutablePath(file string) (string, error) {
@@ -116,17 +118,17 @@ func getExecutablePath(file string) (string, error) {
 }
 
 func executeTypeCmd(inst *Instruction) {
-	switch inst.Arg {
+	switch inst.Args {
 	case "exit", "echo", "type", "pwd", "cd":
-		fmt.Printf("%s is a shell builtin\n", inst.Arg)
+		fmt.Printf("%s is a shell builtin\n", inst.Args)
 	default:
-		exePath, err := getExecutablePath(inst.Arg)
+		exePath, err := getExecutablePath(inst.Args)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 			return
 		}
 
-		fmt.Printf("%v is %v\n", inst.Arg, exePath)
+		fmt.Printf("%v is %v\n", inst.Args, exePath)
 	}
 }
 
@@ -141,20 +143,20 @@ func executePwdCmd() {
 }
 
 func executeCdCmd(inst *Instruction) {
-	absPath, err := filepath.Abs(inst.Arg)
+	absPath, err := filepath.Abs(inst.Args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return
 	}
 
 	// Handle tilde (home directory)
-	if inst.Arg == "~" {
+	if inst.Args == "~" {
 		absPath = os.Getenv("HOME")
 	}
 
 	if err := os.Chdir(absPath); err != nil {
 		if os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "cd: %v: No such file or directory\n", inst.Arg)
+			fmt.Fprintf(os.Stderr, "cd: %v: No such file or directory\n", inst.Args)
 		} else {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 		}
@@ -170,7 +172,13 @@ func runProgram(inst *Instruction) bool {
 		return false
 	}
 
-	cmd := exec.Command(inst.Command, inst.Arg)
+	// Handle single quotes separated string
+	args := strings.Split(inst.RawArg, "' '")
+	for i := range args {
+		args[i] = strings.Trim(args[i], "'")
+	}
+
+	cmd := exec.Command(inst.Command, args...)
 	output, err := cmd.Output()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
