@@ -111,6 +111,11 @@ func executeCdCmd(command string) {
 		return
 	}
 
+	// Handle tilde (home directory)
+	if newDir == "~" {
+		absPath = os.Getenv("HOME")
+	}
+
 	if err := os.Chdir(absPath); err != nil {
 		if os.IsNotExist(err) {
 			fmt.Fprintf(os.Stderr, "cd: %v: No such file or directory\n", newDir)
