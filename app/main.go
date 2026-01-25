@@ -10,14 +10,58 @@ import (
 	"strings"
 )
 
-func executeExitCmd(command string) {
-	// Get the optional exit code
-	tokens := strings.Split(command, " ")
-	if len(tokens) <= 1 {
-		os.Exit(0)
+type Instruction struct {
+	Command string
+	Arg     string
+}
+
+// parseInstruction parses the instruction given to the prompt.
+func parseInstruction(rawInstruction string) *Instruction {
+	tokens := strings.Split(rawInstruction, " ")
+	tokensLen := len(tokens)
+	if tokensLen < 1 {
+		return nil
 	}
+
+	inst := &Instruction{
+		Command: tokens[0],
+	}
+	if tokensLen > 1 {
+		inst.Arg = strings.Join(tokens[1:], " ")
+	}
+
+	inst.Arg = handleSingleQuote(inst.Arg)
+	return inst
+}
+
+func handleSingleQuote(arg string) string {
+	var (
+		newArg         strings.Builder
+		prev           rune
+		hasSingleQuote bool
+	)
+	for _, r := range arg {
+		if r == '\'' {
+			hasSingleQuote = !hasSingleQuote
+		} else if !hasSingleQuote && r == ' ' && prev == ' ' { // Ignore more than one space if not inside single quotes
+			continue
+		} else {
+			prev = r
+			newArg.WriteRune(r)
+		}
+	}
+
+	return newArg.String()
+}
+
+func executeExitCmd(inst *Instruction) {
+	if len(inst.Arg) <= 0 {
+		os.Exit(0)
+		return
+	}
+
 	// Parse the exit code
-	exitCode, err := strconv.Atoi(strings.Split(command, " ")[1])
+	exitCode, err := strconv.Atoi(inst.Arg)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error reading exit code: ", err)
 		exitCode = 1
@@ -25,13 +69,8 @@ func executeExitCmd(command string) {
 	os.Exit(exitCode)
 }
 
-func executeEchoCmd(command string) {
-	tokens := strings.Split(command, " ")
-	if len(tokens) < 1 {
-		os.Exit(0)
-	}
-
-	fmt.Println(strings.Join(tokens[1:], " "))
+func executeEchoCmd(inst *Instruction) {
+	fmt.Println(inst.Arg)
 }
 
 func getExecutablePath(file string) (string, error) {
@@ -76,20 +115,18 @@ func getExecutablePath(file string) (string, error) {
 	return "", fmt.Errorf("%s: not found", file)
 }
 
-func executeTypeCmd(command string) {
-	tokens := strings.Split(command, " ")[1:]
-	argCmd := strings.Join(tokens, " ")
-	switch argCmd {
+func executeTypeCmd(inst *Instruction) {
+	switch inst.Arg {
 	case "exit", "echo", "type", "pwd", "cd":
-		fmt.Printf("%s is a shell builtin\n", argCmd)
+		fmt.Printf("%s is a shell builtin\n", inst.Arg)
 	default:
-		exePath, err := getExecutablePath(argCmd)
+		exePath, err := getExecutablePath(inst.Arg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 			return
 		}
 
-		fmt.Printf("%v is %v\n", argCmd, exePath)
+		fmt.Printf("%v is %v\n", inst.Arg, exePath)
 	}
 }
 
@@ -103,33 +140,29 @@ func executePwdCmd() {
 	fmt.Println(curDir)
 }
 
-func executeCdCmd(command string) {
-	newDir := strings.Split(command, " ")[1]
-	absPath, err := filepath.Abs(newDir)
+func executeCdCmd(inst *Instruction) {
+	absPath, err := filepath.Abs(inst.Arg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return
 	}
 
 	// Handle tilde (home directory)
-	if newDir == "~" {
+	if inst.Arg == "~" {
 		absPath = os.Getenv("HOME")
 	}
 
 	if err := os.Chdir(absPath); err != nil {
 		if os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "cd: %v: No such file or directory\n", newDir)
+			fmt.Fprintf(os.Stderr, "cd: %v: No such file or directory\n", inst.Arg)
 		} else {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 		}
 	}
 }
 
-func runProgram(command string) bool {
-	tokens := strings.Split(command, " ")
-	argCmd := tokens[0]
-
-	_, err := getExecutablePath(argCmd)
+func runProgram(inst *Instruction) bool {
+	_, err := getExecutablePath(inst.Command)
 	if err != nil {
 		if !strings.Contains(err.Error(), "not found") {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -137,7 +170,7 @@ func runProgram(command string) bool {
 		return false
 	}
 
-	cmd := exec.Command(tokens[0], tokens[1:]...)
+	cmd := exec.Command(inst.Command, inst.Arg)
 	output, err := cmd.Output()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -149,18 +182,24 @@ func runProgram(command string) bool {
 }
 
 func evaluateCommand(command string) {
+	inst := parseInstruction(command)
+	if inst == nil {
+		os.Exit(0)
+		return
+	}
+
 	// Handle the "exit" builtin
 	if strings.HasPrefix(command, "exit") {
-		executeExitCmd(command)
+		executeExitCmd(inst)
 	} else if strings.HasPrefix(command, "echo") {
-		executeEchoCmd(command)
+		executeEchoCmd(inst)
 	} else if strings.HasPrefix(command, "type") {
-		executeTypeCmd(command)
+		executeTypeCmd(inst)
 	} else if command == "pwd" {
 		executePwdCmd()
 	} else if strings.HasPrefix(command, "cd") {
-		executeCdCmd(command)
-	} else if !runProgram(command) {
+		executeCdCmd(inst)
+	} else if !runProgram(inst) {
 		fmt.Println(command + ": command not found")
 	}
 }
