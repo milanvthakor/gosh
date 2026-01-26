@@ -142,7 +142,7 @@ func executeTypeCmd(inst *Instruction) {
 			return
 		}
 
-		fmt.Printf("%v is %v\n", inst.Args, exePath)
+		fmt.Printf("%v is %v\n", inst.Args[0], exePath)
 	}
 }
 
