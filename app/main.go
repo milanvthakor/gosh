@@ -193,7 +193,7 @@ func runProgram(inst *Instruction) bool {
 		return false
 	}
 
-	fmt.Println(string(output))
+	fmt.Print(string(output))
 	return true
 }
 
