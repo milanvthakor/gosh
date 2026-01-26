@@ -6,9 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 )
+
+var specialChars = []rune{'"', '\\'}
 
 type Instruction struct {
 	Command string
@@ -60,8 +63,7 @@ func handleQuotes(arg string) []string {
 			}
 
 		case '\\':
-			seenQuote := seenDoubleQuote || seenSingleQuote
-			if !seenQuote && i+1 < len(runes) {
+			if !seenSingleQuote && i+1 < len(runes) && slices.Contains(specialChars, runes[i]) {
 				i++
 			}
 
