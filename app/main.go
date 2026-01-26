@@ -13,39 +13,23 @@ import (
 
 var specialChars = []rune{'"', '\\'}
 
-type Instruction struct {
-	Command string
-	Args    []string
+type Command struct {
+	Exec string
+	Args []string
 }
 
-// parseInstruction parses the instruction given to the prompt.
-func parseInstruction(rawInstruction string) *Instruction {
-	tokens := strings.Split(rawInstruction, " ")
-	tokensLen := len(tokens)
-	if tokensLen < 1 {
-		return nil
-	}
-
-	inst := &Instruction{
-		Command: tokens[0],
-	}
-	if tokensLen > 1 {
-		inst.Args = handleQuotes(strings.Join(tokens[1:], " "))
-	}
-
-	return inst
-}
-
-func handleQuotes(arg string) []string {
+// parseCommand parses the command given to the prompt.
+func parseCommand(rawCmd string) *Command {
 	var (
-		args            []string
+		tokens          []string
 		prev            rune
 		cur             strings.Builder
 		seenSingleQuote bool
 		seenDoubleQuote bool
 	)
 
-	runes := []rune(arg)
+	// Handle special characters, single, and double quotes
+	runes := []rune(rawCmd)
 	for i := 0; i < len(runes); {
 		switch runes[i] {
 		case '\'':
@@ -74,7 +58,7 @@ func handleQuotes(arg string) []string {
 			if seenQuote {
 				cur.WriteRune(runes[i])
 			} else if prev != ' ' && cur.Len() > 0 {
-				args = append(args, cur.String())
+				tokens = append(tokens, cur.String())
 				cur = strings.Builder{}
 			}
 
@@ -87,20 +71,33 @@ func handleQuotes(arg string) []string {
 	}
 
 	if cur.Len() > 0 {
-		args = append(args, cur.String())
+		tokens = append(tokens, cur.String())
 	}
 
-	return args
+	tokensLen := len(tokens)
+	// Parsing failed, invalid command
+	if len(tokens) < 1 {
+		return nil
+	}
+
+	cmd := &Command{
+		Exec: tokens[0],
+	}
+	if tokensLen > 1 {
+		cmd.Args = tokens[1:]
+	}
+
+	return cmd
 }
 
-func executeExitCmd(inst *Instruction) {
-	if len(inst.Args) <= 0 {
+func executeExitCmd(cmd *Command) {
+	if len(cmd.Args) <= 0 {
 		os.Exit(0)
 		return
 	}
 
 	// Parse the exit code
-	exitCode, err := strconv.Atoi(inst.Args[0])
+	exitCode, err := strconv.Atoi(cmd.Args[0])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error reading exit code: ", err)
 		exitCode = 1
@@ -108,8 +105,8 @@ func executeExitCmd(inst *Instruction) {
 	os.Exit(exitCode)
 }
 
-func executeEchoCmd(inst *Instruction) {
-	fmt.Println(strings.Join(inst.Args, " "))
+func executeEchoCmd(cmd *Command) {
+	fmt.Println(strings.Join(cmd.Args, " "))
 }
 
 func getExecutablePath(file string) (string, error) {
@@ -154,18 +151,18 @@ func getExecutablePath(file string) (string, error) {
 	return "", fmt.Errorf("%s: not found", file)
 }
 
-func executeTypeCmd(inst *Instruction) {
-	switch inst.Args[0] {
+func executeTypeCmd(cmd *Command) {
+	switch cmd.Args[0] {
 	case "exit", "echo", "type", "pwd", "cd":
-		fmt.Printf("%s is a shell builtin\n", inst.Args[0])
+		fmt.Printf("%s is a shell builtin\n", cmd.Args[0])
 	default:
-		exePath, err := getExecutablePath(inst.Args[0])
+		exePath, err := getExecutablePath(cmd.Args[0])
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 			return
 		}
 
-		fmt.Printf("%v is %v\n", inst.Args[0], exePath)
+		fmt.Printf("%v is %v\n", cmd.Args[0], exePath)
 	}
 }
 
@@ -179,29 +176,29 @@ func executePwdCmd() {
 	fmt.Println(curDir)
 }
 
-func executeCdCmd(inst *Instruction) {
-	absPath, err := filepath.Abs(inst.Args[0])
+func executeCdCmd(cmd *Command) {
+	absPath, err := filepath.Abs(cmd.Args[0])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return
 	}
 
 	// Handle tilde (home directory)
-	if inst.Args[0] == "~" {
+	if cmd.Args[0] == "~" {
 		absPath = os.Getenv("HOME")
 	}
 
 	if err := os.Chdir(absPath); err != nil {
 		if os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "cd: %v: No such file or directory\n", strings.Join(inst.Args, " "))
+			fmt.Fprintf(os.Stderr, "cd: %v: No such file or directory\n", strings.Join(cmd.Args, " "))
 		} else {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 		}
 	}
 }
 
-func runProgram(inst *Instruction) bool {
-	_, err := getExecutablePath(inst.Command)
+func runProgram(cmd *Command) bool {
+	_, err := getExecutablePath(cmd.Exec)
 	if err != nil {
 		if !strings.Contains(err.Error(), "not found") {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -209,8 +206,7 @@ func runProgram(inst *Instruction) bool {
 		return false
 	}
 
-	cmd := exec.Command(inst.Command, inst.Args...)
-	output, err := cmd.Output()
+	output, err := exec.Command(cmd.Exec, cmd.Args...).Output()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return false
@@ -221,24 +217,24 @@ func runProgram(inst *Instruction) bool {
 }
 
 func evaluateCommand(command string) {
-	inst := parseInstruction(command)
-	if inst == nil {
+	cmd := parseCommand(command)
+	if cmd == nil {
 		os.Exit(0)
 		return
 	}
 
 	// Handle the "exit" builtin
 	if strings.HasPrefix(command, "exit") {
-		executeExitCmd(inst)
+		executeExitCmd(cmd)
 	} else if strings.HasPrefix(command, "echo") {
-		executeEchoCmd(inst)
+		executeEchoCmd(cmd)
 	} else if strings.HasPrefix(command, "type") {
-		executeTypeCmd(inst)
+		executeTypeCmd(cmd)
 	} else if command == "pwd" {
 		executePwdCmd()
 	} else if strings.HasPrefix(command, "cd") {
-		executeCdCmd(inst)
-	} else if !runProgram(inst) {
+		executeCdCmd(cmd)
+	} else if !runProgram(cmd) {
 		fmt.Println(command + ": command not found")
 	}
 }
