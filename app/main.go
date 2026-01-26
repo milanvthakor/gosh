@@ -55,6 +55,14 @@ func handleQuotes(arg string) []string {
 		case '"':
 			seenDoubleQuote = !seenDoubleQuote
 
+		case '\\':
+			seenQuote := seenDoubleQuote || seenSingleQuote
+			if !seenQuote && i+1 < len(runes) {
+				i++
+			}
+
+			cur.WriteRune(runes[i])
+
 		case ' ':
 			seenQuote := seenDoubleQuote || seenSingleQuote
 			if seenQuote {
