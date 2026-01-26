@@ -35,19 +35,28 @@ func parseInstruction(rawInstruction string) *Instruction {
 
 func handleQuotes(arg string) []string {
 	var (
-		args      []string
-		prev      rune
-		cur       strings.Builder
-		seenQuote bool
+		args            []string
+		prev            rune
+		cur             strings.Builder
+		seenSingleQuote bool
+		seenDoubleQuote bool
 	)
 
 	runes := []rune(arg)
 	for i := 0; i < len(runes); {
 		switch runes[i] {
 		case '\'':
-			seenQuote = !seenQuote
+			if seenDoubleQuote {
+				cur.WriteRune(runes[i])
+			} else {
+				seenSingleQuote = !seenSingleQuote
+			}
+
+		case '"':
+			seenDoubleQuote = !seenDoubleQuote
 
 		case ' ':
+			seenQuote := seenDoubleQuote || seenSingleQuote
 			if seenQuote {
 				cur.WriteRune(runes[i])
 			} else if prev != ' ' && cur.Len() > 0 {
