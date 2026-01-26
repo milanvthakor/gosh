@@ -134,7 +134,7 @@ func getExecutablePath(file string) (string, error) {
 func executeTypeCmd(inst *Instruction) {
 	switch inst.Args[0] {
 	case "exit", "echo", "type", "pwd", "cd":
-		fmt.Printf("%s is a shell builtin\n", inst.Args)
+		fmt.Printf("%s is a shell builtin\n", inst.Args[0])
 	default:
 		exePath, err := getExecutablePath(inst.Args[0])
 		if err != nil {
@@ -170,7 +170,7 @@ func executeCdCmd(inst *Instruction) {
 
 	if err := os.Chdir(absPath); err != nil {
 		if os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "cd: %v: No such file or directory\n", inst.Args)
+			fmt.Fprintf(os.Stderr, "cd: %v: No such file or directory\n", strings.Join(inst.Args, " "))
 		} else {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 		}
