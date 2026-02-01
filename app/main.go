@@ -216,26 +216,26 @@ func runProgram(cmd *Command) bool {
 	return true
 }
 
-func evaluateCommand(command string) {
-	cmd := parseCommand(command)
+func evaluateCommand(rawCmd string) {
+	cmd := parseCommand(rawCmd)
 	if cmd == nil {
 		os.Exit(0)
 		return
 	}
 
 	// Handle the "exit" builtin
-	if strings.HasPrefix(command, "exit") {
+	if strings.HasPrefix(rawCmd, "exit") {
 		executeExitCmd(cmd)
-	} else if strings.HasPrefix(command, "echo") {
+	} else if strings.HasPrefix(rawCmd, "echo") {
 		executeEchoCmd(cmd)
-	} else if strings.HasPrefix(command, "type") {
+	} else if strings.HasPrefix(rawCmd, "type") {
 		executeTypeCmd(cmd)
-	} else if command == "pwd" {
+	} else if rawCmd == "pwd" {
 		executePwdCmd()
-	} else if strings.HasPrefix(command, "cd") {
+	} else if strings.HasPrefix(rawCmd, "cd") {
 		executeCdCmd(cmd)
 	} else if !runProgram(cmd) {
-		fmt.Println(command + ": command not found")
+		fmt.Println(rawCmd + ": command not found")
 	}
 }
 
