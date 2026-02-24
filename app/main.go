@@ -47,7 +47,7 @@ func parseCommand(rawCmd string) *Command {
 			}
 
 		case '\\':
-			if !seenSingleQuote && i+1 < len(runes) && slices.Contains(specialChars, runes[i]) {
+			if !seenSingleQuote && i+1 < len(runes) && slices.Contains(specialChars, runes[i+1]) {
 				i++
 			}
 
@@ -223,19 +223,22 @@ func evaluateCommand(rawCmd string) {
 		return
 	}
 
-	// Handle the "exit" builtin
-	if strings.HasPrefix(rawCmd, "exit") {
+	// Handle builtins based on parsed command name
+	switch cmd.Exec {
+	case "exit":
 		executeExitCmd(cmd)
-	} else if strings.HasPrefix(rawCmd, "echo") {
+	case "echo":
 		executeEchoCmd(cmd)
-	} else if strings.HasPrefix(rawCmd, "type") {
+	case "type":
 		executeTypeCmd(cmd)
-	} else if rawCmd == "pwd" {
+	case "pwd":
 		executePwdCmd()
-	} else if strings.HasPrefix(rawCmd, "cd") {
+	case "cd":
 		executeCdCmd(cmd)
-	} else if !runProgram(cmd) {
-		fmt.Println(rawCmd + ": command not found")
+	default:
+		if !runProgram(cmd) {
+			fmt.Printf("%s: command not found\n", cmd.Exec)
+		}
 	}
 }
 
