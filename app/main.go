@@ -14,8 +14,9 @@ import (
 var specialChars = []rune{'"', '\\'}
 
 type Command struct {
-	Exec string
-	Args []string
+	Exec            string
+	Args            []string
+	OutputRedirFile string
 }
 
 // parseCommand parses the command given to the prompt.
@@ -26,6 +27,7 @@ func parseCommand(rawCmd string) *Command {
 		cur             strings.Builder
 		seenSingleQuote bool
 		seenDoubleQuote bool
+		seenOutputRedir bool
 	)
 
 	// Handle special characters, single, and double quotes
@@ -62,6 +64,14 @@ func parseCommand(rawCmd string) *Command {
 				cur = strings.Builder{}
 			}
 
+		case '>':
+			if seenDoubleQuote || seenSingleQuote || (prev != ' ' && prev != '1') {
+				cur.WriteRune(runes[i])
+				continue
+			}
+
+			seenOutputRedir = true
+
 		default:
 			cur.WriteRune(runes[i])
 		}
@@ -84,7 +94,12 @@ func parseCommand(rawCmd string) *Command {
 		Exec: tokens[0],
 	}
 	if tokensLen > 1 {
-		cmd.Args = tokens[1:]
+		if seenOutputRedir {
+			cmd.OutputRedirFile = tokens[tokensLen-1]
+			cmd.Args = tokens[1 : tokensLen-1]
+		} else {
+			cmd.Args = tokens[1:]
+		}
 	}
 
 	return cmd
@@ -105,8 +120,8 @@ func executeExitCmd(cmd *Command) {
 	os.Exit(exitCode)
 }
 
-func executeEchoCmd(cmd *Command) {
-	fmt.Println(strings.Join(cmd.Args, " "))
+func executeEchoCmd(cmd *Command) string {
+	return strings.Join(cmd.Args, " ") + "\n"
 }
 
 func getExecutablePath(file string) (string, error) {
@@ -151,29 +166,29 @@ func getExecutablePath(file string) (string, error) {
 	return "", fmt.Errorf("%s: not found", file)
 }
 
-func executeTypeCmd(cmd *Command) {
+func executeTypeCmd(cmd *Command) string {
 	switch cmd.Args[0] {
 	case "exit", "echo", "type", "pwd", "cd":
-		fmt.Printf("%s is a shell builtin\n", cmd.Args[0])
+		return fmt.Sprintf("%s is a shell builtin\n", cmd.Args[0])
 	default:
 		exePath, err := getExecutablePath(cmd.Args[0])
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
-			return
+			return ""
 		}
 
-		fmt.Printf("%v is %v\n", cmd.Args[0], exePath)
+		return fmt.Sprintf("%v is %v\n", cmd.Args[0], exePath)
 	}
 }
 
-func executePwdCmd() {
+func executePwdCmd() string {
 	curDir, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
-		return
+		return ""
 	}
 
-	fmt.Println(curDir)
+	return curDir + "\n"
 }
 
 func executeCdCmd(cmd *Command) {
@@ -197,23 +212,22 @@ func executeCdCmd(cmd *Command) {
 	}
 }
 
-func runProgram(cmd *Command) bool {
+func runProgram(cmd *Command) (string, bool) {
 	_, err := getExecutablePath(cmd.Exec)
 	if err != nil {
 		if !strings.Contains(err.Error(), "not found") {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 		}
-		return false
+		return "", false
 	}
 
 	output, err := exec.Command(cmd.Exec, cmd.Args...).Output()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
-		return false
+		return "", false
 	}
 
-	fmt.Print(string(output))
-	return true
+	return string(output), true
 }
 
 func evaluateCommand(rawCmd string) {
@@ -223,22 +237,40 @@ func evaluateCommand(rawCmd string) {
 		return
 	}
 
+	var output string
+
 	// Handle builtins based on parsed command name
 	switch cmd.Exec {
 	case "exit":
 		executeExitCmd(cmd)
 	case "echo":
-		executeEchoCmd(cmd)
+		output = executeEchoCmd(cmd)
 	case "type":
-		executeTypeCmd(cmd)
+		output = executeTypeCmd(cmd)
 	case "pwd":
-		executePwdCmd()
+		output = executePwdCmd()
 	case "cd":
 		executeCdCmd(cmd)
 	default:
-		if !runProgram(cmd) {
+		op, ok := runProgram(cmd)
+		if !ok {
 			fmt.Printf("%s: command not found\n", cmd.Exec)
+			return
 		}
+		output = op
+	}
+
+	if output == "" {
+		return
+	}
+
+	// Handle output
+	if cmd.OutputRedirFile != "" {
+		if err := os.WriteFile(cmd.OutputRedirFile, []byte(output), os.ModePerm); err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+		}
+	} else {
+		fmt.Print(output)
 	}
 }
 
