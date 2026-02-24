@@ -70,6 +70,7 @@ func parseCommand(rawCmd string) *Command {
 				continue
 			}
 
+			cur = strings.Builder{}
 			seenOutputRedir = true
 
 		default:
