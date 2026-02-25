@@ -213,22 +213,26 @@ func executeCdCmd(cmd *Command) {
 	}
 }
 
-func runProgram(cmd *Command) (string, bool) {
+func runProgram(cmd *Command) string {
 	_, err := getExecutablePath(cmd.Exec)
 	if err != nil {
 		if !strings.Contains(err.Error(), "not found") {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 		}
-		return "", false
+		return ""
 	}
 
 	output, err := exec.Command(cmd.Exec, cmd.Args...).Output()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		return "", false
+		if ee, ok := err.(*exec.ExitError); ok {
+			fmt.Fprint(os.Stderr, string(ee.Stderr))
+		} else {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+		}
+		return ""
 	}
 
-	return string(output), true
+	return string(output)
 }
 
 func evaluateCommand(rawCmd string) {
@@ -253,12 +257,7 @@ func evaluateCommand(rawCmd string) {
 	case "cd":
 		executeCdCmd(cmd)
 	default:
-		op, ok := runProgram(cmd)
-		if !ok {
-			fmt.Printf("%s: command not found\n", cmd.Exec)
-			return
-		}
-		output = op
+		output = runProgram(cmd)
 	}
 
 	if output == "" {
@@ -268,7 +267,7 @@ func evaluateCommand(rawCmd string) {
 	// Handle output
 	if cmd.OutputRedirFile != "" {
 		if err := os.WriteFile(cmd.OutputRedirFile, []byte(output), os.ModePerm); err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
+			fmt.Fprintf(os.Stderr, "failed to redirect ouptut: %v\n", err)
 		}
 	} else {
 		fmt.Print(output)
